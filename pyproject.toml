@@ -5,7 +5,20 @@ description = ""
 authors = [
     {name = "nia", email = "mangrove0720@outlook.com"},
 ]
-dependencies = []
+dependencies = [
+    "flask==3.0.3",
+    "httpx==0.27.0",
+    "redis==5.0.3",
+    "huey==2.5.0",
+    "gevent==24.2.1",
+]
 requires-python = "==3.11.*"
 readme = "README.md"
 license = {text = "MIT"}
+
+[tool.pdm]
+[tool.pdm.dev-dependencies]
+dev = [
+    "pytest==8.1.1",
+    "types-redis==4.6.0.20240409",
+]
