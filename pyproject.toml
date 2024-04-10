@@ -16,9 +16,16 @@ requires-python = "==3.11.*"
 readme = "README.md"
 license = {text = "MIT"}
 
+[project.scripts]
+slab = "slab.__main__:main"
+
 [tool.pdm]
 [tool.pdm.dev-dependencies]
 dev = [
     "pytest==8.1.1",
     "types-redis==4.6.0.20240409",
 ]
+
+[tool.pdm.scripts]
+start = "slab start"
+dev = "slab dev"
