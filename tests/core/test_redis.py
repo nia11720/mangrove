@@ -1,3 +1,6 @@
+import json as jsonlib
+import pickle
+
 import pytest
 
 from core.redis import Redis
@@ -13,6 +16,20 @@ def test_add_prefix(r):
     assert "@mangrove:test:s" in r.keys("*")
     r.set("@s", 2, ex=5)
     assert "@s" in r.keys("@*")
+
+
+def test_json_value(r):
+    j = {"x": 1}
+    r.set("j", j, json=True, ex=5)
+    assert r.get("j") == jsonlib.dumps(j, separators=(",", ":"))
+    assert r.get("j", json=True) == j
+
+
+def test_pickle_value(r):
+    p = {"x": 1}
+    r.set("p", p, pickle=True, ex=50)
+    assert r.execute_command("GET", "p", NEVER_DECODE=True) == pickle.dumps(p)
+    assert r.get("p", pickle=True) == p
 
 
 def test_pipeline(r):

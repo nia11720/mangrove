@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pickle
 from contextvars import ContextVar
 from weakref import WeakKeyDictionary
 
@@ -76,16 +75,15 @@ class Httpx(Client):
     def save_cookies(self, key: str, max_age=None):
         jar = self.cookies.jar
         with jar._cookies_lock:
-            data = pickle.dumps(jar._cookies)
+            cookies = jar._cookies.copy()
 
-        self.redis.set(key, data, ex=max_age)
+        self.redis.set(key, cookies, pickle=True, ex=max_age)
 
     def load_cookies(self, key: str):
-        data = self.redis.execute_command("GET", key, NEVER_DECODE=True)
+        cookies = self.redis.get(key, pickle=True)
 
-        if data:
+        if cookies:
             jar = self.cookies.jar
-            cookies = pickle.loads(data)
             with jar._cookies_lock:
                 jar._cookies = cookies
             return True

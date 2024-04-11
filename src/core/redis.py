@@ -1,4 +1,6 @@
 import re
+import pickle as picklelib
+import json as jsonlib
 
 from redis.connection import ConnectionPool
 from redis.client import Redis as _Redis, Pipeline as _Pipeline, PubSub as _PubSub
@@ -45,10 +47,48 @@ class NamespaceMixin:
         return super().execute_command(*args, **kwargs)
 
 
+class CommandMixin:
+    @t.overload
+    def set(
+        self,
+        key,
+        value,
+        json=False,
+        pickle=False,
+        ex=None,
+        px=None,
+        nx=False,
+        xx=False,
+        keepttl=False,
+        get=False,
+        exat=None,
+        pxat=None,
+    ): ...
+
+    def set(self, key, value, json=False, pickle=False, **kwargs):
+        if json:
+            value = jsonlib.dumps(value, separators=(",", ":"))
+        elif pickle:
+            value = picklelib.dumps(value)
+        return super().set(key, value, **kwargs)
+
+    def get(self, key, json=False, pickle=False):
+        if json:
+            data = super().get(key)
+            if data:
+                return jsonlib.loads(data)
+        elif pickle:
+            data = super().execute_command("GET", key, NEVER_DECODE=True)
+            if data:
+                return picklelib.loads(data)
+        else:
+            return super().get(key)
+
+
 connection_pool = ConnectionPool.from_url(url=REDIS_URL, decode_responses=True)
 
 
-class Redis(NamespaceMixin, _Redis):
+class Redis(CommandMixin, NamespaceMixin, _Redis):
     def __init__(self, namespace=""):
         super().__init__(connection_pool=connection_pool, namespace=namespace)
 
@@ -65,7 +105,7 @@ class Redis(NamespaceMixin, _Redis):
         return PubSub(self.connection_pool, namespace=self.namespace, **kwargs)
 
 
-class Pipeline(NamespaceMixin, _Pipeline):
+class Pipeline(CommandMixin, NamespaceMixin, _Pipeline):
     pass
 
 
