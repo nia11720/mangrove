@@ -62,7 +62,7 @@ def comment():
 
     url = "/x/v2/reply/wbi/main"
     params = f"oid={oid}&type=1&pagination_str={pagination_str}"
-    res = authed_httpx.get(url, params=(params))
+    res = authed_httpx.get(url, params=attach_wrid(params))
     data = res.json()["data"]
 
     return data
