@@ -17,3 +17,24 @@ def test_playlist():
     continuation = res.json["continuation"]
     res = client.get(f"/playlist/?id={id}&continuation={continuation}")
     assert res.status_code == 200
+
+
+def test_channel():
+    id = "@dailyroutine_official"
+    res = client.get(f"/channel/?id={id}")
+    assert res.status_code == 200
+
+    res = client.get(f"/channel/video?id={id}")
+    assert res.status_code == 200
+    continuation = res.json["continuation"]
+    res = client.get(f"/channel/video?id={id}&continuation={continuation}")
+    assert res.status_code == 200
+
+    res = client.get(f"/channel/live?id={id}")
+    assert res.status_code == 200
+    continuation = res.json["continuation"]
+    res = client.get(f"/channel/live?id={id}&continuation={continuation}")
+    assert res.status_code == 200
+
+    res = client.get(f"/channel/playlist?id={id}")
+    assert res.status_code == 200
