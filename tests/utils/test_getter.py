@@ -12,8 +12,7 @@ def test_str_key():
     assert getter["y.a"] == 2
     assert getter["z.0"] == 3
     assert getter["null"] is None
-    with pytest.raises(KeyError):
-        getter["null.a"]
+    assert getter["null.a"] is None
 
 
 def test_sep():

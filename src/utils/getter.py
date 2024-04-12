@@ -46,7 +46,7 @@ class Getter:
                 else:
                     val = val.get(k)
         except:
-            raise KeyError
+            return
         else:
             return val
 
