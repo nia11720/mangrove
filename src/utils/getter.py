@@ -11,7 +11,9 @@ class Getter:
     @t.overload
     def get(self, key: str): ...
     @t.overload
-    def get(self, key: tuple[str]): ...
+    def get(self, key: tuple): ...
+    @t.overload
+    def get(self, key: list): ...
     @t.overload
     def get(self, key: dict[str]): ...
 
@@ -27,8 +29,10 @@ class Getter:
             return [self[k] for k in key]
         elif isinstance(key, set):
             return {k: self[k] for k in key}
+        elif isinstance(key, list):
+            return self._get_from_list(key)
         elif isinstance(key, dict):
-            return self._get_from_dict(key)
+            return {dst: self[src] for dst, src in key.items()}
 
     def __getitem__(self, key):
         return self.get(key)
@@ -37,18 +41,17 @@ class Getter:
         val = self.data
         try:
             for k in key.split(self.sep):
-                val = val.get(k)
+                if isinstance(val, list):
+                    val = val[int(k)]
+                else:
+                    val = val.get(k)
         except:
             raise KeyError
         else:
             return val
 
-    def _get_from_dict(self, key: dict[str]):
-        rv = {}
-        getter = self
-        for dst, src in key.items():
-            if dst.startswith("_"):
-                getter = __class__(self[src], self.sep)
-                continue
-            rv[dst] = getter[src]
-        return rv
+    def _get_from_list(self, key: list):
+        getter = __class__(self.data, self.sep)
+        for k in key:
+            getter.data = getter[k]
+        return getter.data
