@@ -22,17 +22,22 @@ def handle2id(handle):
 @bp.before_request
 def before_request():
     id = request.args.get("id") or abort(400)
-    g.id = handle2id(id) if id.startswith("@") else id
+    g.id = id = handle2id(id) if id.startswith("@") else id
 
     httpx.Referer = f"https://www.youtube.com/channel/{id}"
+
+    if channel := redis.get(f"channel:{id}", json=True):
+        g.tabs = channel["tabs"]
+    else:
+        index()
 
 
 @bp.get("/")
 def index():
-    json = {"browseId": g.id, "params": "EghmZWF0dXJlZPIGBAoCMgA%3D"}
-    res = httpx.post("/youtubei/v1/browse", json=json)
+    items_key = "contents.twoColumnBrowseResultsRenderer.tabs"
+    data, tabs, _ = httpx.browse(g.id, items_key, params="EghmZWF0dXJlZPIGBAoCMgA%3D")
 
-    channel, tabs = Getter(res.json())[
+    channel = Getter(data).get(
         [
             "metadata.channelMetadataRenderer",
             {
@@ -42,174 +47,133 @@ def index():
                 "des": "description",
                 "keywords": "keywords",
             },
-        ],
-        "contents.twoColumnBrowseResultsRenderer.tabs",
-    ]
+        ]
+    )
 
-    for tab in tabs:
-        if tab.get("tabRenderer"):
-            tab = Getter(tab).get(
-                [
-                    "tabRenderer",
-                    {
-                        "title": "title",
-                        "params": "endpoint.browseEndpoint.params",
-                    },
-                ]
-            )
-            channel.setdefault("tabs", []).append(tab)
+    if tabs and tabs[-1].get("expandableTabRenderer"):
+        tabs.pop()
+
+    channel["tabs"] = Getter(tabs).get(
+        [
+            "tabRenderer",
+            {
+                "title": "title",
+                "params": "endpoint.browseEndpoint.params",
+            },
+        ]
+    )
+
+    g.tabs = channel["tabs"]
+    redis.set(f"channel:{g.id}", channel, json=True, ex=60 * 60 * 24)
 
     return channel
 
 
 @bp.get("/video")
 def video():
-    continuation = request.args.get("continuation")
+    for i, tab in enumerate(g.tabs):
+        if tab["title"] == "Videos":
+            break
 
-    json = {"browseId": g.id, "params": "EgZ2aWRlb3PyBgQKAjoA"}
-    if continuation:
-        json["continuation"] = continuation
-    res = httpx.post("/youtubei/v1/browse", json=json)
+    items_key = (
+        f"contents.twoColumnBrowseResultsRenderer.tabs.{i}."
+        "tabRenderer.content.richGridRenderer.contents"
+    )
+    _, items, continuation = httpx.browse(
+        g.id, items_key, params="EgZ2aWRlb3PyBgQKAjoA"
+    )
 
-    tabs, continuation_item = Getter(res.json())[
-        "contents.twoColumnBrowseResultsRenderer.tabs",
-        "onResponseReceivedActions.0.appendContinuationItemsAction.continuationItems",
-    ]
-
-    if tabs:
-        for tab in tabs:
-            if tab["tabRenderer"]["title"] == "Videos":
-                break
-        items = Getter(tab).get(["tabRenderer.content.richGridRenderer.contents"])
-    else:
-        items = continuation_item
-
-    rv = {}
+    rv = {"continuation": continuation}
     for item in items:
-        if item.get("richItemRenderer"):
-            video = Getter(item).get(
-                [
-                    "richItemRenderer.content.videoRenderer",
-                    {
-                        "id": "videoId",
-                        "title": "title.runs.0.text",
-                        "duration_text": "lengthText.simpleText",
-                        "thumbnail": "thumbnail.thumbnails.0.url",
-                        "view_text": "shortViewCountText.simpleText",
-                        "publish_text": "publishedTimeText.simpleText",
-                    },
-                ]
-            )
-            video["desc"] = " • ".join(
-                [video.pop("view_text"), video.pop("publish_text")]
-            )
-            rv.setdefault("items", []).append(video)
-        else:
-            rv["continuation"] = Getter(item)[
-                "continuationItemRenderer.continuationEndpoint.continuationCommand.token"
+        video = Getter(item).get(
+            [
+                "richItemRenderer.content.videoRenderer",
+                {
+                    "id": "videoId",
+                    "title": "title.runs.0.text",
+                    "duration_text": "lengthText.simpleText",
+                    "thumbnail": "thumbnail.thumbnails.0.url",
+                    "view_text": "shortViewCountText.simpleText",
+                    "publish_text": "publishedTimeText.simpleText",
+                },
             ]
+        )
+        video["desc"] = " • ".join([video.pop("view_text"), video.pop("publish_text")])
+        rv.setdefault("items", []).append(video)
 
     return rv
 
 
 @bp.get("/live")
 def live():
-    continuation = request.args.get("continuation")
+    for i, tab in enumerate(g.tabs):
+        if tab["title"] == "Live":
+            break
 
-    json = {"browseId": g.id, "params": "EgdzdHJlYW1z8gYECgJ6AA%3D%3D"}
-    if continuation:
-        json["continuation"] = continuation
-    res = httpx.post("/youtubei/v1/browse", json=json)
+    items_key = (
+        f"contents.twoColumnBrowseResultsRenderer.tabs.{i}."
+        "tabRenderer.content.richGridRenderer.contents"
+    )
+    _, items, continuation = httpx.browse(
+        g.id, items_key, params="EgdzdHJlYW1z8gYECgJ6AA%3D%3D"
+    )
 
-    tabs, continuation_item = Getter(res.json())[
-        "contents.twoColumnBrowseResultsRenderer.tabs",
-        "onResponseReceivedActions.0.appendContinuationItemsAction.continuationItems",
-    ]
-    if tabs:
-        for tab in tabs:
-            if tab["tabRenderer"]["title"] == "Live":
-                break
-        items = Getter(tab).get(["tabRenderer.content.richGridRenderer.contents"])
-    else:
-        items = continuation_item
-
-    rv = {}
+    rv = {"continuation": continuation}
     for item in items:
-        if item.get("richItemRenderer"):
-            video = Getter(item).get(
-                [
-                    "richItemRenderer.content.videoRenderer",
-                    {
-                        "id": "videoId",
-                        "title": "title.runs.0.text",
-                        "duration_text": "lengthText.simpleText",
-                        "thumbnail": "thumbnail.thumbnails.0.url",
-                        "view_text": ["viewCountText.runs", "text"],
-                        "publish_text": "publishedTimeText.simpleText",
-                    },
-                ]
-            )
-
-            if video["duration_text"]:
-                video.pop("view_text")
-                video["desc"] = video.pop("publish_text")
-            else:
-                video.pop("duration_text")
-                video.pop("publish_text")
-                video["desc"] = "".join(video.pop("view_text"))
-            rv.setdefault("items", []).append(video)
-        else:
-            rv["continuation"] = Getter(item)[
-                "continuationItemRenderer.continuationEndpoint.continuationCommand.token"
+        live = Getter(item).get(
+            [
+                "richItemRenderer.content.videoRenderer",
+                {
+                    "id": "videoId",
+                    "title": "title.runs.0.text",
+                    "duration_text": "lengthText.simpleText",
+                    "thumbnail": "thumbnail.thumbnails.0.url",
+                    "view_text": ["viewCountText.runs", "text"],
+                    "publish_text": "publishedTimeText.simpleText",
+                },
             ]
+        )
+
+        if live["duration_text"]:
+            live.pop("view_text")
+            live["desc"] = live.pop("publish_text")
+        else:
+            live.pop("duration_text")
+            live.pop("publish_text")
+            live["desc"] = "".join(live.pop("view_text"))
+        rv.setdefault("items", []).append(live)
 
     return rv
 
 
 @bp.get("/playlist")
 def playlist():
-    continuation = request.args.get("continuation")
+    for i, tab in enumerate(g.tabs):
+        if tab["title"] == "Playlists":
+            break
 
-    json = {"browseId": g.id, "params": "EglwbGF5bGlzdHPyBgQKAkIA"}
-    if continuation:
-        json["continuation"] = continuation
-    res = httpx.post("/youtubei/v1/browse", json=json)
+    items_key = (
+        f"contents.twoColumnBrowseResultsRenderer.tabs.{i}."
+        "tabRenderer.content.sectionListRenderer.contents.0.itemSectionRenderer.contents.0.gridRenderer.items"
+    )
+    _, items, continuation = httpx.browse(
+        g.id, items_key, params="EglwbGF5bGlzdHPyBgQKAkIA"
+    )
 
-    tabs, continuation_item = Getter(res.json())[
-        "contents.twoColumnBrowseResultsRenderer.tabs",
-        "onResponseReceivedActions.0.appendContinuationItemsAction.continuationItems",
-    ]
-    if tabs:
-        for tab in tabs:
-            if tab["tabRenderer"]["title"] == "Playlists":
-                break
-        items = Getter(tab).get(
+    rv = {"continuation": continuation}
+    for item in items:
+        playlist = Getter(item).get(
             [
-                "tabRenderer.content.sectionListRenderer.contents.0.itemSectionRenderer.contents.0.gridRenderer.items"
+                "gridPlaylistRenderer",
+                {
+                    "id": "playlistId",
+                    "title": "title.runs.0.text",
+                    "thumbnail": "thumbnail.thumbnails.0.url",
+                    "desc": ["videoCountText.runs", "text"],
+                },
             ]
         )
-    else:
-        items = continuation_item
-
-    rv = {}
-    for item in items:
-        if item.get("gridPlaylistRenderer"):
-            playlist = Getter(item).get(
-                [
-                    "gridPlaylistRenderer",
-                    {
-                        "id": "playlistId",
-                        "title": "title.runs.0.text",
-                        "thumbnail": "thumbnail.thumbnails.0.url",
-                        "desc": ["videoCountText.runs", "text"],
-                    },
-                ]
-            )
-            playlist["desc"] = "".join(playlist["desc"])
-            rv.setdefault("items", []).append(playlist)
-        else:
-            rv["continuation"] = Getter(item)[
-                "continuationItemRenderer.continuationEndpoint.continuationCommand.token"
-            ]
+        playlist["desc"] = "".join(playlist["desc"])
+        rv.setdefault("items", []).append(playlist)
 
     return rv
