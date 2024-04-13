@@ -11,9 +11,9 @@ def index():
     id = request.args.get("id") or abort(400)
 
     httpx.Referer = f"https://www.youtube.com/watch?v={id}"
-    res = httpx.post("/youtubei/v1/player", json={"videoId": id})
+    data = httpx.player(id)
 
-    video, stream = Getter(res.json())[
+    video, adaptive_formats, formats = Getter(data)[
         [
             "videoDetails",
             {
@@ -29,12 +29,18 @@ def index():
                 "owner": {"id": "channelId", "name": "author"},
             },
         ],
-        [
-            "streamingData.adaptiveFormats",
-            {"url": "url", "quality": "qualityLabel", "mimetype": "mimeType"},
-        ],
+        "streamingData.adaptiveFormats",
+        "streamingData.formats",
     ]
 
-    video["stream"] = stream
+    video["streams"] = Getter([*adaptive_formats, *formats])[
+        {
+            "itag": "itag",
+            "quality": "qualityLabel",
+            "mimetype": "mimeType",
+            "content_length": "contentLength",
+            "url": "url",
+        }
+    ]
 
     return video
