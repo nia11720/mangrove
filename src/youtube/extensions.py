@@ -43,7 +43,6 @@ class YTBHttpx(Httpx):
 
 httpx = YTBHttpx(base_url="https://www.youtube.com")
 
-httpx.load_cookies("bilibili:unauth")
-if not httpx.load_cookies("bilibili:unauth"):
+if not httpx.load_cookies("youtube:unauth"):
     httpx.head("/")
-    httpx.save_cookies("bilibili:unauth")
+    httpx.save_cookies("youtube:unauth")
