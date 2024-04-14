@@ -2,6 +2,7 @@ from core import Flask
 
 app = Flask(__name__)
 with app.app_context():
+    from . import task
     from .blueprint import video, playlist, channel
 
     app.register_blueprint(video.bp, url_prefix="/video")
