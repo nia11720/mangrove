@@ -8,6 +8,9 @@ def test_video():
     res = client.get(f"/video/?id={id}")
     assert res.status_code == 200
 
+    res = client.get(f"/video/stream?id={id}")
+    assert res.status_code == 200
+
 
 def test_playlist():
     id = "PLKMAC3SlKGwWvn0h_JEFSmjzEBx0lbELs"

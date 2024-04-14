@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 from flask import Blueprint, request, abort, g
 
@@ -22,8 +23,8 @@ def handle2id(handle):
 @bp.before_request
 def before_request():
     id = request.args.get("id") or abort(400)
-    g.id = id = handle2id(id) if id.startswith("@") else id
 
+    g.id = id = handle2id(id) if id.startswith("@") else id
     httpx.Referer = f"https://www.youtube.com/channel/{id}"
 
     if channel := redis.get(f"channel:{id}", json=True):
@@ -53,17 +54,7 @@ def index():
     if tabs and tabs[-1].get("expandableTabRenderer"):
         tabs.pop()
 
-    channel["tabs"] = Getter(tabs).get(
-        [
-            "tabRenderer",
-            {
-                "title": "title",
-                "params": "endpoint.browseEndpoint.params",
-            },
-        ]
-    )
-
-    g.tabs = channel["tabs"]
+    g.tabs = channel["tabs"] = Getter(tabs)["tabRenderer.title"]
     redis.set(f"channel:{g.id}", channel, json=True, ex=60 * 60 * 24)
 
     return channel
@@ -71,12 +62,8 @@ def index():
 
 @bp.get("/video")
 def video():
-    for i, tab in enumerate(g.tabs):
-        if tab["title"] == "Videos":
-            break
-
     items_key = (
-        f"contents.twoColumnBrowseResultsRenderer.tabs.{i}."
+        f"contents.twoColumnBrowseResultsRenderer.tabs.{g.tabs.index('Videos')}."
         "tabRenderer.content.richGridRenderer.contents"
     )
     _, items, continuation = httpx.browse(
@@ -85,20 +72,27 @@ def video():
 
     rv = {"continuation": continuation}
     for item in items:
-        video = Getter(item).get(
+        video, view, publish, upcoming = Getter(item).get(
             [
                 "richItemRenderer.content.videoRenderer",
-                {
-                    "id": "videoId",
-                    "title": "title.runs.0.text",
-                    "duration_text": "lengthText.simpleText",
-                    "thumbnail": "thumbnail.thumbnails.0.url",
-                    "view_text": "shortViewCountText.simpleText",
-                    "publish_text": "publishedTimeText.simpleText",
-                },
+                (
+                    {
+                        "id": "videoId",
+                        "title": "title.runs.0.text",
+                        "duration_text": "lengthText.simpleText",
+                        "thumbnail": "thumbnail.thumbnails.0.url",
+                    },
+                    "viewCountText.simpleText",
+                    "publishedTimeText.simpleText",
+                    "upcomingEventData.startTime",
+                ),
             ]
         )
-        video["desc"] = " • ".join([video.pop("view_text"), video.pop("publish_text")])
+        if publish:
+            video["desc"] = f"{view} • {publish}"
+        else:
+            upcoming = datetime.fromtimestamp(int(upcoming))
+            video["desc"] = f"Premieres {upcoming}"
         rv.setdefault("items", []).append(video)
 
     return rv
@@ -106,12 +100,8 @@ def video():
 
 @bp.get("/live")
 def live():
-    for i, tab in enumerate(g.tabs):
-        if tab["title"] == "Live":
-            break
-
     items_key = (
-        f"contents.twoColumnBrowseResultsRenderer.tabs.{i}."
+        f"contents.twoColumnBrowseResultsRenderer.tabs.{g.tabs.index('Live')}."
         "tabRenderer.content.richGridRenderer.contents"
     )
     _, items, continuation = httpx.browse(
@@ -120,27 +110,31 @@ def live():
 
     rv = {"continuation": continuation}
     for item in items:
-        live = Getter(item).get(
+        live, duration, view, publish, watching, upcoming = Getter(item).get(
             [
                 "richItemRenderer.content.videoRenderer",
-                {
-                    "id": "videoId",
-                    "title": "title.runs.0.text",
-                    "duration_text": "lengthText.simpleText",
-                    "thumbnail": "thumbnail.thumbnails.0.url",
-                    "view_text": ["viewCountText.runs", "text"],
-                    "publish_text": "publishedTimeText.simpleText",
-                },
+                (
+                    {
+                        "id": "videoId",
+                        "title": "title.runs.0.text",
+                        "thumbnail": "thumbnail.thumbnails.0.url",
+                    },
+                    "lengthText.simpleText",
+                    "viewCountText.simpleText",
+                    "publishedTimeText.simpleText",
+                    ["viewCountText.runs", "text"],
+                    "upcomingEventData.startTime",
+                ),
             ]
         )
-
-        if live["duration_text"]:
-            live.pop("view_text")
-            live["desc"] = live.pop("publish_text")
+        if publish:
+            live["duration"] = duration
+            live["desc"] = f"{view} • {publish}"
+        elif watching:
+            live["desc"] = "".join(watching)
         else:
-            live.pop("duration_text")
-            live.pop("publish_text")
-            live["desc"] = "".join(live.pop("view_text"))
+            upcoming = datetime.fromtimestamp(int(upcoming))
+            live["desc"] = f"Scheduled for {upcoming}"
         rv.setdefault("items", []).append(live)
 
     return rv
@@ -148,12 +142,8 @@ def live():
 
 @bp.get("/playlist")
 def playlist():
-    for i, tab in enumerate(g.tabs):
-        if tab["title"] == "Playlists":
-            break
-
     items_key = (
-        f"contents.twoColumnBrowseResultsRenderer.tabs.{i}."
+        f"contents.twoColumnBrowseResultsRenderer.tabs.{g.tabs.index('Playlists')}."
         "tabRenderer.content.sectionListRenderer.contents.0.itemSectionRenderer.contents.0.gridRenderer.items"
     )
     _, items, continuation = httpx.browse(
@@ -162,18 +152,20 @@ def playlist():
 
     rv = {"continuation": continuation}
     for item in items:
-        playlist = Getter(item).get(
+        playlist, desc = Getter(item).get(
             [
                 "gridPlaylistRenderer",
-                {
-                    "id": "playlistId",
-                    "title": "title.runs.0.text",
-                    "thumbnail": "thumbnail.thumbnails.0.url",
-                    "desc": ["videoCountText.runs", "text"],
-                },
+                (
+                    {
+                        "id": "playlistId",
+                        "title": "title.runs.0.text",
+                        "thumbnail": "thumbnail.thumbnails.0.url",
+                    },
+                    ["videoCountText.runs", "text"],
+                ),
             ]
         )
-        playlist["desc"] = "".join(playlist["desc"])
+        playlist["desc"] = "".join(desc)
         rv.setdefault("items", []).append(playlist)
 
     return rv

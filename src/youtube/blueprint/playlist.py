@@ -25,18 +25,18 @@ def index():
     ]
 
     if metadata:
-        rv = Getter(metadata)[
+        rv, desc = Getter(metadata)[
             {
                 "id": "playlistId",
                 "title": "title.simpleText",
-                "desc": ["stats.0.runs", "text"],
                 "owner": {
                     "id": "ownerEndpoint.browseEndpoint.browseId",
                     "name": "ownerText.runs.0.text",
                 },
-            }
+            },
+            ["stats.0.runs", "text"],
         ]
-        rv["desc"] = "".join(rv["desc"])
+        rv["desc"] = "".join(desc)
     else:
         rv = {}
 
@@ -45,19 +45,21 @@ def index():
 
     rv["continuation"] = continuation
     for item in items:
-        video = Getter(item).get(
+        video, desc = Getter(item).get(
             [
                 "playlistVideoRenderer",
-                {
-                    "id": "videoId",
-                    "title": "title.runs.0.text",
-                    "duration": "lengthSeconds",
-                    "thumbnail": "thumbnail.thumbnails.0.url",
-                    "desc": ["videoInfo.runs", "text"],
-                },
+                (
+                    {
+                        "id": "videoId",
+                        "title": "title.runs.0.text",
+                        "duration": "lengthSeconds",
+                        "thumbnail": "thumbnail.thumbnails.0.url",
+                    },
+                    ["videoInfo.runs", "text"],
+                ),
             ]
         )
-        video["desc"] = "".join(video["desc"])
+        video["desc"] = "".join(desc)
         rv.setdefault("items", []).append(video)
 
     return rv
