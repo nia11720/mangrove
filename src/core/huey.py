@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from huey import RedisHuey, crontab
+from huey import PriorityRedisHuey, crontab
 
 from .config import REDIS_URL
 
@@ -10,7 +10,7 @@ if t.TYPE_CHECKING:
     from huey.api import TaskWrapper
 
 
-class Huey(RedisHuey):
+class Huey(PriorityRedisHuey):
     def __init__(self, name: str):
         super().__init__(name, url=REDIS_URL, utc=False, results=False)
 

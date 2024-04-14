@@ -7,7 +7,7 @@ from youtube.extensions import httpx, redis
 client = app.test_client()
 
 
-@huey.task(retries=5, retry_delay=10)
+@huey.task(retries=5, retry_delay=10, priority=-1)
 def download_video(id, itag="18"):
     task_id = f"downloading:{id}-{itag}"
     if task := redis.hgetall(task_id):
@@ -29,7 +29,7 @@ def download_video(id, itag="18"):
 
     if res.status_code == 206:
         redis.hincrby(task_id, "offset", nbytes)
-        download_video(id, itag)
+        download_video(id, itag, priority=0)
     else:
         redis.delete(task_id)
         os.rename(filename, filename[:-8])
