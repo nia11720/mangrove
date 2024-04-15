@@ -8,14 +8,17 @@ client = app.test_client()
 
 
 @huey.task(retries=5, retry_delay=10, priority=-1)
-def download_video(id, itag="18"):
+def download_video(id, itag="18", playlist="unname"):
     task_id = f"downloading:{id}-{itag}"
     if task := redis.hgetall(task_id):
         url, filename, offset = task["url"], task["filename"], int(task["offset"])
     else:
         data = client.get(f"/video/stream?id={id}").json
-        title, url = f"{data['title']}[{id}-{itag}]", data["urls"][itag]
-        filename = os.path.expanduser(f"~/storage/movies/{title}.mp4.partial")
+        title, url = data["title"], data["urls"][itag]
+
+        dirname = os.path.expanduser(f"~/storage/movies/youtube/{playlist}")
+        os.makedirs(dirname, exist_ok=True)
+        filename = os.path.expanduser(f"{dirname}/{title}[{id}-{itag}].mp4.partial")
         offset = 0
 
         mapping = {"url": url, "filename": filename, "offset": offset}
@@ -39,4 +42,4 @@ def download_video(id, itag="18"):
 def download_playlist(id, itag="18"):
     playlist = client.get(f"/playlist/?id={id}").json
     for video in playlist["items"]:
-        download_video(video["id"], itag)
+        download_video(video["id"], itag, playlist=playlist["title"])
