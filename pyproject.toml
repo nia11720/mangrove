@@ -1,0 +1,16 @@
+[project]
+name = "mangrove"
+version = "1.0.0"
+description = ""
+authors = [
+    {name = "nia", email = "mangrove0720@outlook.com"},
+]
+dependencies = ["flask==3.1.0"]
+requires-python = "==3.11.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.4",
+]
