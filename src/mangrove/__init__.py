@@ -10,7 +10,8 @@ def index():
 
 with app.app_context():
     from .subapp import app as subapp
-    from .blueprint import demo1
+    from .blueprint import demo1, demo2
 
     app.register_flask(subapp, url_prefix="/subapp")
     app.register_blueprint(demo1.bp, url_prefix="/demo1")
+    app.register_blueprint(demo2.bp, url_prefix="/demo2")

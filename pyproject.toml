@@ -5,7 +5,7 @@ description = ""
 authors = [
     {name = "nia", email = "mangrove0720@outlook.com"},
 ]
-dependencies = ["flask==3.1.0"]
+dependencies = ["flask==3.1.0", "httpx==0.28.1"]
 requires-python = "==3.11.*"
 readme = "README.md"
 license = {text = "MIT"}
