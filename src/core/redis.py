@@ -1,6 +1,6 @@
 from redis import Redis as _Redis
 
-from core.env import REDIS_URL
+from .env import REDIS_URL
 
 
 class Redis(_Redis):

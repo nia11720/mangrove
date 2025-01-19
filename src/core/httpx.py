@@ -3,7 +3,7 @@ from weakref import WeakKeyDictionary
 
 from httpx import Client
 
-from core.env import USER_AGENT
+from .env import USER_AGENT
 
 
 class LocalProperty:
