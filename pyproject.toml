@@ -6,7 +6,7 @@ authors = [
     {name = "nia", email = "mangrove0720@outlook.com"},
 ]
 dependencies = ["flask==3.1.0", "httpx==0.28.1", "redis==5.2.1", "huey==2.5.2"]
-requires-python = "==3.11.*"
+requires-python = "==3.12.*"
 readme = "README.md"
 license = {text = "MIT"}
 
