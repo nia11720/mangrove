@@ -1,4 +1,4 @@
-from logging import getLogger, INFO, Formatter
+from logging import getLogger, INFO, Formatter, NullHandler
 
 from huey.constants import WORKER_PROCESS
 
@@ -16,7 +16,7 @@ def main():
     logger = getLogger("huey")
     logger.setLevel(INFO)
     logger.addHandler(redis_handler)
-    getLogger("huey.consumer").disabled = True
+    getLogger("huey.consumer").addHandler(NullHandler())
 
     huey.create_consumer(workers=4, worker_type=WORKER_PROCESS).run()
 
